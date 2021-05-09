@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "cwd": "${workspaceRoot}",
+            "executable": "./target/thumbv7em-none-eabihf/debug/stm32f_ultrasonic",
+            "name": "Debug Microcontroller",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "stm32f3discovery.cfg"
+            ]
+        },
+        {
+            "name": "Debug",
+            "type": "gdb",
+            "remote": true,
+            "target": ":3333",
+            "request": "attach",
+            "executable": "target/thumbv7em-none-eabihf/debug/stm32f_ultrasonic",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText",
+            "gdbpath": "arm-none-eabi-gdb"
+        }
+    ]
+}

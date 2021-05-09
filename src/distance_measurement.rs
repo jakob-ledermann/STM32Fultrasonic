@@ -2,7 +2,6 @@ use core::time::Duration;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use stm32f3_discovery::stm32f3xx_hal::hal as embedded_hal;
 use stm32f3_discovery::stm32f3xx_hal::time::{Instant, MonoTimer};
-use stm32f3_discovery::switch_hal::{ActiveLow, IntoSwitch, OutputSwitch, Switch};
 
 pub enum Future<T> {
     NotStarted,
@@ -18,7 +17,7 @@ pub enum DistanceError<TOutError> {
 enum States {
     Idle,
     SendPulse(Instant),
-    WaitAnswerPulse,
+    WaitAnswerPulse(Instant),
     MeasureAnswerPulse(Instant),
 }
 
@@ -28,7 +27,7 @@ where
     TOut: OutputPin<Error = TOutError>,
 {
     state: States,
-    driver: Switch<TOut, ActiveLow>,
+    driver: TOut,
     receiver: TIn,
     timer: &'timer MonoTimer,
 }
@@ -49,7 +48,8 @@ where
         echo: TIn,
         timer: &'timer MonoTimer,
     ) -> DistanceMeasurement<'timer, TIn, TOut, TOutError> {
-        let driver = trigger.into_active_low_switch();
+        let mut driver = trigger;
+        let _ = driver.set_low();
         DistanceMeasurement {
             state: States::Idle,
             driver: driver,
@@ -59,30 +59,40 @@ where
     }
 
     pub fn start(&mut self) {
+        let _ = self.driver.set_high();
         self.state = States::SendPulse(self.timer.now());
     }
 
+    pub fn reset(&mut self) {
+        let _ = self.driver.set_low();
+        self.state = States::Idle;
+    }
+
     pub fn poll(&mut self) -> Result<Future<Duration>, DistanceError<TOutError>> {
-        const MIN_LOW_PULSE: Duration = Duration::from_micros(10);
+        const MIN_LOW_PULSE: Duration = Duration::from_millis(10);
         const ECHO_TIME_OUT: Duration = Duration::from_millis(200);
         match self.state {
             States::Idle => {
-                self.driver.off()?;
+                self.driver.set_low()?;
                 Ok(Future::NotStarted)
             }
             States::SendPulse(start) => {
-                self.driver.on()?;
                 if self.get_duration(&start) > MIN_LOW_PULSE {
-                    self.state = States::WaitAnswerPulse;
+                    let _ = self.driver.set_low();
+                    self.state = States::WaitAnswerPulse(self.timer.now());
                 }
                 Ok(Future::Pending)
             }
-            States::WaitAnswerPulse => {
-                self.driver.on()?;
+            States::WaitAnswerPulse(start) => {
                 match self.receiver.is_high() {
                     Ok(true) => self.state = States::MeasureAnswerPulse(self.timer.now()),
                     _ => (),
                 }
+
+                if self.get_duration(&start) > ECHO_TIME_OUT {
+                    return Err(DistanceError::NoEcho);
+                }
+
                 Ok(Future::Pending)
             }
             States::MeasureAnswerPulse(start) => match self.receiver.is_low() {
@@ -105,7 +115,7 @@ where
 
     fn get_duration(&self, start: &Instant) -> Duration {
         Duration::from_micros(
-            (start.elapsed() * 1000_000) as u64 / (self.timer.frequency().0 as u64),
+            (start.elapsed() as u64 * 1000_000u64) / (self.timer.frequency().0 as u64),
         )
     }
 }
