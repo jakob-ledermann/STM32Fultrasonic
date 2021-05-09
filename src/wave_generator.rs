@@ -1,11 +1,15 @@
 use core::ops::Add;
 use core::time::Duration;
 use micromath::F32Ext;
+use num_complex::{Complex, Complex32};
+
+use super::complex_ext::ComplexExt;
+
+use core::f32::consts::PI;
 
 pub struct SinWaveGenerator {
+    complex_amplitude: Complex32,
     frequency: f32,
-    amplitude: f32,
-    phase_offset: f32,
     amplitude_offset: f32,
 }
 
@@ -17,10 +21,11 @@ pub struct WaveGeneratorIterator<'a> {
 
 impl SinWaveGenerator {
     pub fn sample(&self, offset_from_start: &Duration) -> f32 {
-        let phase_offset_in_secs = self.phase_offset / self.frequency;
+        let time = offset_from_start.as_secs_f32();
         self.amplitude_offset
-            + self.amplitude
-                * (self.frequency * offset_from_start.as_secs_f32() + phase_offset_in_secs).sin()
+            + (self.complex_amplitude
+                * Complex32::new(0f32, 2f32 * PI * self.frequency * time).exp())
+            .re
     }
 
     pub fn wave_duration(&self) -> Duration {
