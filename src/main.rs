@@ -1,3 +1,4 @@
+#![deny(unsafe_code)]
 #![no_main]
 #![no_std]
 
@@ -6,7 +7,6 @@ use cortex_m_rt::entry;
 use distance_measurement::{DistanceError, Future};
 use panic_reset as _;
 //use panic_semihosting as _;
-use defmt::write;
 use stm32f3_discovery::stm32f3xx_hal::hal::digital::v2::{InputPin, OutputPin};
 use stm32f3_discovery::stm32f3xx_hal::serial::*;
 use stm32f3_discovery::stm32f3xx_hal::time::MonoTimer;
