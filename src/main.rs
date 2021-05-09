@@ -7,12 +7,12 @@ use distance_measurement::{DistanceError, Future};
 use panic_reset as _;
 //use panic_semihosting as _;
 use defmt::write;
-use stm32f3_discovery::stm32f3xx_hal::hal;
 use stm32f3_discovery::stm32f3xx_hal::hal::digital::v2::{InputPin, OutputPin};
 use stm32f3_discovery::stm32f3xx_hal::serial::*;
 use stm32f3_discovery::stm32f3xx_hal::time::MonoTimer;
 use stm32f3_discovery::stm32f3xx_hal::{delay::Delay, time::Bps};
 use stm32f3_discovery::stm32f3xx_hal::{prelude::*, stm32};
+use stm32f3_discovery::{stm32f3xx_hal::hal, switch_hal::OutputSwitch};
 
 const SPEED_OF_SOUND: u16 = 340;
 
@@ -40,13 +40,19 @@ fn main() -> ! {
 
     let dma_channels = peripherals.DMA1.split(&mut rcc.ahb);
 
-    let north = parts
-        .pe9
-        .into_push_pull_output(&mut parts.moder, &mut parts.otyper);
-
-    let mut north_east = parts
-        .pe10
-        .into_push_pull_output(&mut parts.moder, &mut parts.otyper);
+    let mut leds = stm32f3_discovery::leds::Leds::new(
+        parts.pe8,
+        parts.pe9,
+        parts.pe10,
+        parts.pe11,
+        parts.pe12,
+        parts.pe13,
+        parts.pe14,
+        parts.pe15,
+        &mut parts.moder,
+        &mut parts.otyper,
+    )
+    .into_array();
 
     let mono_timer = MonoTimer::new(core_peripherals.DWT, clocks);
     let mut delay = Delay::new(core_peripherals.SYST, clocks);
@@ -63,7 +69,6 @@ fn main() -> ! {
 
     let mut measure =
         distance_measurement::DistanceMeasurement::new(us_drive_pin, us_measure_pin, &mono_timer);
-    let mut blink = Blink::new(north);
 
     let mut distance_mm;
 
@@ -72,8 +77,6 @@ fn main() -> ! {
     let mut tx_channel = dma_channels.ch4;
 
     loop {
-        blink.toggle();
-
         if user_button.is_high().unwrap() {
             measure.start();
         }
@@ -82,12 +85,10 @@ fn main() -> ! {
 
         match measure.poll() {
             Err(DistanceError::NoEcho) => {
-                let _ = north_east.set_low();
                 measure.reset();
             }
             Err(DistanceError::PinError(_err)) => todo!("Handle errors"),
             Ok(Future::Complete(duration)) => {
-                let _ = north_east.set_low();
                 distance_mm = duration.as_secs_f32() / 2f32 * SPEED_OF_SOUND as f32 * 1000f32;
                 let measured_heigth = 2000.0f32 - distance_mm;
                 let factor = measured_heigth / 2000f32;
@@ -107,16 +108,24 @@ fn main() -> ! {
                 serial_tx = res.2;
                 tx_buf = res.0;
                 tx_channel = res.1;
+
+                let count = (factor * 8f32) as usize;
+                for led in &mut leds[..count] {
+                    let _ = led.on();
+                }
+
+                for led in &mut leds[count..] {
+                    let _ = led.off();
+                }
             }
             Ok(Future::Pending) => delay.delay_us(1u8),
             Ok(Future::NotStarted) => {
                 delay.delay_ms(1000u32);
-                //if let Ok(true) = user_button.is_high() {
                 measure.start();
-                let _ = north_east.set_high();
-                //} else {
-                //    north_east.set_low();
-                //}
+
+                for led in &mut leds {
+                    let _ = led.off();
+                }
             }
         }
     }
