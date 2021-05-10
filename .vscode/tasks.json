@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cargo",
+			"command": "build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"label": "rust: cargo build"
+		},
+		{
+			"type": "process",
+			"command": "openocd",
+			"args": [
+				"-f",
+				"${workspaceFolder}/stm32f3discovery.cfg"
+			],
+			"group": "none",
+			"label": "launch openocd",
+			"isBackground": true,
+			"runOptions": {
+				"instanceLimit": 1,
+				"runOn": "folderOpen"
+			}
+		},
+	]
+}
